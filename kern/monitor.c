@@ -73,7 +73,7 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 		uint32_t ceip = eip;
 		eip = *(p + 1);
 		struct Eipdebuginfo info;
-		debuginfo_eip(ceip, &info);
+		debuginfo_eip(eip, &info);
 		cprintf("ebp %x  eip %x  args %08x %08x %08x %08x %08x\t%s:%d: %.*s+%d\n", 
 			ebp, ceip, *(p + 2), *(p + 3), *(p + 4), *(p + 5), *(p + 6),
 			info.eip_file, info.eip_line, info.eip_fn_namelen, info.eip_fn_name, info.eip_fn_addr);
