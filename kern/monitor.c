@@ -57,7 +57,18 @@ mon_kerninfo(int argc, char **argv, struct Trapframe *tf)
 int
 mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 {
-	// Your code here.
+	uint32_t ebp, eip;
+	asm volatile("movl %%ebp, %0": "=r" (ebp));
+	while (ebp != 0x0) {
+		uint32_t *p = (uint32_t *) ebp;
+		eip = *(p + 1);
+		struct Eipdebuginfo info;
+		debuginfo_eip(eip, &info);
+		cprintf("ebp %x  eip %x  args %08x %08x %08x %08x %08x\t%s:%d: %.*s+%d\n", 
+			ebp, eip, *(p + 2), *(p + 3), *(p + 4), *(p + 5), *(p + 6),
+			info.eip_file, info.eip_line, info.eip_fn_namelen, info.eip_fn_name, info.eip_fn_addr);
+		ebp = *p;
+	}
 	return 0;
 }
 
