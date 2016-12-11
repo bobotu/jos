@@ -119,7 +119,7 @@ debuginfo_eip(uintptr_t addr, struct Eipdebuginfo *info)
 
 	// Initialize *info
 	info->eip_file = "<unknown>";
-	info->eip_line = 0;
+	info->eip_line = -1;
 	info->eip_fn_name = "<unknown>";
 	info->eip_fn_namelen = 9;
 	info->eip_fn_addr = addr;
@@ -204,8 +204,10 @@ debuginfo_eip(uintptr_t addr, struct Eipdebuginfo *info)
 	//	Look at the STABS documentation and <inc/stab.h> to find
 	//	which one.
 	// Your code here.
-
-
+	stab_binsearch(stabs, &lline, &rline, N_SLINE, addr);
+	if (lline <= rline) {
+		info->eip_line = stabs[lline].n_value;
+	}
 	// Search backwards from the line number for the relevant filename
 	// stab.
 	// We can't just use the "lfile" stab because inlined functions
