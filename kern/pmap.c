@@ -150,14 +150,17 @@ mem_init(void)
 	// array.  'npages' is the number of physical pages in memory.  Use memset
 	// to initialize all fields of each struct PageInfo to 0.
 	// Your code goes here:
-	size_t sz = npages * sizeof(struct PageInfo);
-	pages = (struct PageInfo *)boot_alloc(sz);
-	memset(pages, 0, sz);
+	size_t pgsz = npages * sizeof(struct PageInfo);
+	pages = (struct PageInfo *)boot_alloc(pgsz);
+	memset(pages, 0, pgsz);
 
 	//////////////////////////////////////////////////////////////////////
 	// Make 'envs' point to an array of size 'NENV' of 'struct Env'.
 	// LAB 3: Your code here.
-
+        size_t esz = NENV * sizeof(struct Env);
+        envs = (struct Env *)boot_alloc(esz);
+        memset(envs, 0, esz);
+        
 	//////////////////////////////////////////////////////////////////////
 	// Now that we've allocated the initial kernel data structures, we set
 	// up the list of free physical pages. Once we've done so, all further
@@ -180,8 +183,8 @@ mem_init(void)
 	//      (ie. perm = PTE_U | PTE_P)
 	//    - pages itself -- kernel RW, user NONE
 	// Your code goes here:
-	boot_map_region(kern_pgdir, (uintptr_t)pages, ROUNDUP(sz, PGSIZE), PADDR(pages), PTE_W);
-	boot_map_region(kern_pgdir, UPAGES, ROUNDUP(sz, PGSIZE), PADDR(pages), PTE_U);
+	boot_map_region(kern_pgdir, (uintptr_t)pages, ROUNDUP(pgsz, PGSIZE), PADDR(pages), PTE_W);
+	boot_map_region(kern_pgdir, UPAGES, ROUNDUP(pgsz, PGSIZE), PADDR(pages), PTE_U);
         
 	//////////////////////////////////////////////////////////////////////
 	// Map the 'envs' array read-only by the user at linear address UENVS
@@ -190,7 +193,9 @@ mem_init(void)
 	//    - the new image at UENVS  -- kernel R, user R
 	//    - envs itself -- kernel RW, user NONE
 	// LAB 3: Your code here.
-
+        boot_map_region(kern_pgdir, (uintptr_t)envs, ROUNDUP(esz, PGSIZE), PADDR(envs), PTE_W);
+	boot_map_region(kern_pgdir, UENVS, ROUNDUP(esz, PGSIZE), PADDR(envs), PTE_U);
+	
 	//////////////////////////////////////////////////////////////////////
 	// Use the physical memory that 'bootstack' refers to as the kernel
 	// stack.  The kernel stack grows down from virtual address KSTACKTOP.
