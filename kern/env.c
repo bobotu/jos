@@ -280,7 +280,7 @@ region_alloc(struct Env *e, void *va, size_t len)
 	uintptr_t ava = ROUNDDOWN((uint32_t) va, PGSIZE), 
 	          aend = ROUNDUP(((uint32_t) va)+len, PGSIZE);
 	while(ava < aend) {
-	        struct PageInfo* pg = page_alloc(0);
+	        struct PageInfo* pg = page_alloc(ALLOC_ZERO);
 	        if(!pg) panic("fuck mem!");
 	        page_insert(dir, pg, (void *)ava, PTE_W | PTE_U);
 	        ava += PGSIZE;
