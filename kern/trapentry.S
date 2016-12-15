@@ -47,10 +47,47 @@
 /*
  * Lab 3: Your code here for generating entry points for the different traps.
  */
+TRAPHANDLER_NOEC(divide, T_DIVIDE);
+TRAPHANDLER_NOEC(debug, T_DEBUG);
+TRAPHANDLER_NOEC(nmi, T_NMI);
+TRAPHANDLER_NOEC(brkpt, T_BRKPT);
+TRAPHANDLER_NOEC(oflow, T_OFLOW);
+TRAPHANDLER_NOEC(bound, T_BOUND);
+TRAPHANDLER_NOEC(illop, T_ILLOP);
+TRAPHANDLER_NOEC(device, T_DEVICE);
+TRAPHANDLER(dblflt, T_DBLFLT);
+TRAPHANDLER(tss, T_TSS);
+TRAPHANDLER(segnp, T_SEGNP);
+TRAPHANDLER(stack, T_STACK);
+TRAPHANDLER(gpflt, T_GPFLT);
+TRAPHANDLER(pgflt, T_PGFLT);
+TRAPHANDLER(fperr, T_FPERR);
+TRAPHANDLER(align, T_ALIGN);
+TRAPHANDLER(mchk, T_MCHK);
+TRAPHANDLER(simderr, T_SIMDERR);
+TRAPHANDLER_NOEC(sysc, T_SYSCALL);
 
-
+TRAPHANDLER_NOEC(timer, IRQ_OFFSET+IRQ_TIMER);
+TRAPHANDLER_NOEC(kbd, IRQ_OFFSET+IRQ_KBD);
+TRAPHANDLER_NOEC(serial, IRQ_OFFSET+IRQ_SERIAL);
+TRAPHANDLER_NOEC(spurious, IRQ_OFFSET+IRQ_SPURIOUS);
+TRAPHANDLER_NOEC(ide, IRQ_OFFSET+IRQ_IDE);
+TRAPHANDLER_NOEC(irq_error, IRQ_OFFSET+IRQ_ERROR);
 
 /*
  * Lab 3: Your code here for _alltraps
  */
-
+.globl _alltraps;
+.type _alltraps, @function;
+.align 2;
+_alltraps:
+push %ds;
+push %es;
+push %eax;
+movw $GD_KD, %ax;
+movw %ax, %ds;
+movw %ax, %es;
+pop %eax;
+pushal;
+push %esp;
+call trap;
