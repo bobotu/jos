@@ -106,7 +106,7 @@ boot_alloc(uint32_t n)
 	// LAB 2: Your code here.
 	uint32_t sz = ROUNDUP(n, PGSIZE);
 	nextfree += sz;
-	if((uint32_t)nextfree >= 0xf0200000) panic("run out of mem!");
+	if((uint32_t)nextfree > 0xf0400000) panic("run out of mem!");
 	return nextfree - sz;
 }
 
@@ -130,7 +130,7 @@ mem_init(void)
 
 	// Remove this line when you're ready to test this function.
 	// panic("mem_init: This function is not finished\n");
-
+        
 	//////////////////////////////////////////////////////////////////////
 	// create initial page directory.
 	kern_pgdir = (pde_t *) boot_alloc(PGSIZE);
@@ -272,7 +272,15 @@ mem_init_mp(void)
 	//     Permissions: kernel RW, user NONE
 	//
 	// LAB 4: Your code here:
-
+        size_t i;
+        for(i = 0; i < NCPU; i++) {
+                //if(i == cpunum()) continue;
+                uintptr_t kstacktop_i = KSTACKTOP - i * (KSTKSIZE + KSTKGAP);
+                boot_map_region(kern_pgdir, 
+                                kstacktop_i - KSTKSIZE, 
+                                KSTKSIZE, PADDR(percpu_kstacks[i]), 
+                                PTE_W);
+        }
 }
 
 void mark_used(struct PageInfo* pg) {
@@ -322,16 +330,19 @@ page_init(void)
 	// Change the code to reflect this.
 	// NB: DO NOT actually touch the physical memory corresponding to
 	// free pages!
+	extern unsigned char mpentry_start[], mpentry_end[];
 	size_t i;
 	mark_used(&pages[0]);
 	for(i = 1; i < npages; ++i) {
 		uint32_t pa = page2pa(&pages[i]);
-		if(i < npages_basemem) {
-			mark_free(&pages[i]);
+		if(pa >= MPENTRY_PADDR && pa < MPENTRY_PADDR+mpentry_end-mpentry_start) {
+		        mark_used(&pages[i]);
 		} else if(pa >= IOPHYSMEM && pa < EXTPHYSMEM) {
 			mark_used(&pages[i]);
-		} else if(pa >= EXTPHYSMEM && pa < (uint32_t)boot_alloc(0) - KERNBASE) {
+		} else if(pa >= 0x00100000 && pa < PADDR(boot_alloc(0))) {
 			mark_used(&pages[i]);
+		} else if(i < npages_basemem) {
+			mark_free(&pages[i]);
 		} else {
 			mark_free(&pages[i]);
 		}
@@ -474,7 +485,8 @@ boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm
 int
 page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
 {
-    pp->pp_ref++;
+        //cprintf("page insert %x\n", va);
+        pp->pp_ref++;
 	page_remove(pgdir, va);
 	pte_t *pte = pgdir_walk(pgdir, va, true);
 	if(!pte) {
@@ -483,6 +495,7 @@ page_insert(pde_t *pgdir, struct PageInfo *pp, void *va, int perm)
 	}
 	pgdir[PDX(va)] |= perm;
 	*pte = page2pa(pp) | perm | PTE_P;
+	//cprintf("page insert %x done!\n", va);
 	return 0;
 }
 
@@ -577,7 +590,10 @@ mmio_map_region(physaddr_t pa, size_t size)
 	// Hint: The staff solution uses boot_map_region.
 	//
 	// Your code here:
-	panic("mmio_map_region not implemented");
+	boot_map_region(kern_pgdir, base, ROUNDUP(size, PGSIZE), ROUNDDOWN(pa, PGSIZE), PTE_PCD|PTE_PWT|PTE_W);
+	base += ROUNDUP(size, PGSIZE);
+	if(base > MMIOLIM) panic("bad mmio map! out of range");
+	return (void *)(base-ROUNDUP(size, PGSIZE));
 }
 
 static uintptr_t user_mem_check_addr;
@@ -608,18 +624,17 @@ user_mem_check(struct Env *env, const void *va, size_t len, int perm)
                  aend = ROUNDUP((uintptr_t)va+len, PGSIZE);
         pte_t* pte = pgdir_walk(env->env_pgdir, (void *) va, 0);
         while(ava < aend) {
-                if(ava >= ULIM) {
-                        user_mem_check_addr = ava;
-                        return -E_FAULT;
-                }
+                if(ava >= ULIM) goto bad;
                 pte_t* pte = pgdir_walk(env->env_pgdir, (void *) ava, 0);
-                if(pte && (*pte & (perm | PTE_P)) != (perm | PTE_P)) {
-                        user_mem_check_addr = ava;
-                        return -E_FAULT;
-                }
+                if(!pte) goto bad;
+                if((*pte & (perm | PTE_P)) != (perm | PTE_P)) goto bad;
                 ava = ROUNDDOWN(ava + PGSIZE, PGSIZE);
         }
 	return 0;
+	
+	bad:
+	user_mem_check_addr = ava;
+        return -E_FAULT;
 }
 
 //

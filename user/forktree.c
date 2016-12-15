@@ -33,6 +33,9 @@ forktree(const char *cur)
 void
 umain(int argc, char **argv)
 {
+        uint32_t esp;
+        asm("movl %%esp, %0;":"=r"(esp));
+        cprintf("%x\n", esp);
 	forktree("");
 }
 

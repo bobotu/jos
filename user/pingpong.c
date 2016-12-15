@@ -20,6 +20,7 @@ umain(int argc, char **argv)
 		if (i == 10)
 			return;
 		i++;
+
 		ipc_send(who, i, 0, 0);
 		if (i == 10)
 			return;

@@ -25,16 +25,19 @@ pgfault(struct UTrapframe *utf)
 	//   (see <inc/memlayout.h>).
 
 	// LAB 4: Your code here.
-
+	envid_t id = sys_getenvid();
+        if(!(uvpt[PGNUM(addr)] & PTE_COW)) panic("fuck!");
+        
 	// Allocate a new page, map it at a temporary location (PFTEMP),
 	// copy the data from the old page to the new page, then move the new
 	// page to the old page's address.
 	// Hint:
 	//   You should make three system calls.
-
 	// LAB 4: Your code here.
-
-	panic("pgfault not implemented");
+        addr = (void*)ROUNDDOWN((uintptr_t)addr, PGSIZE);
+        if(sys_page_alloc(id, PFTEMP, PTE_W|PTE_U|PTE_P)) panic("alloc fail");
+        memcpy(PFTEMP, addr, PGSIZE);
+        sys_page_map(id, PFTEMP, id, addr, PTE_W|PTE_U|PTE_P);
 }
 
 //
@@ -53,8 +56,18 @@ duppage(envid_t envid, unsigned pn)
 {
 	int r;
 
-	// LAB 4: Your code here.
-	panic("duppage not implemented");
+	envid_t id = sys_getenvid();
+	
+        void* addr = (void *)(pn*PGSIZE);
+
+        if(!(uvpt[PGNUM(addr)] & PTE_P)) return -1;
+        if((uvpt[PGNUM(addr)] & PTE_W) || (uvpt[PGNUM(addr)] & PTE_COW)) {
+                sys_page_map(id, addr, envid, addr, PTE_U|PTE_COW|PTE_P);
+                sys_page_map(id, addr, id, addr, PTE_U|PTE_COW|PTE_P);
+        } else {
+                sys_page_map(id, addr, envid, addr, PTE_U|PTE_P);
+        }
+	
 	return 0;
 }
 
@@ -78,7 +91,25 @@ envid_t
 fork(void)
 {
 	// LAB 4: Your code here.
-	panic("fork not implemented");
+	set_pgfault_handler(pgfault);
+	envid_t cp = sys_exofork();
+	envid_t id = sys_getenvid();
+	thisenv = envs + ENVX(sys_getenvid());
+	if(!cp) return 0;
+	if(sys_env_set_status(cp, ENV_NOT_RUNNABLE))
+	        panic("set status fail");
+	uintptr_t addr = 0;
+	for(;addr < UTOP - PGSIZE; addr += PGSIZE) {
+	        if(uvpd[PDX(addr)] && uvpt[PGNUM(addr)])
+	                duppage(cp, addr/PGSIZE);
+	}
+	if(sys_page_alloc(cp, (void*)(UXSTACKTOP-PGSIZE), PTE_U|PTE_W|PTE_P))
+	        panic("UXSTACKTOP alloc fail");
+        if(sys_env_set_pgfault_upcall(cp, thisenv->env_pgfault_upcall))
+                panic("set upcall fail");
+	if(sys_env_set_status(cp, ENV_RUNNABLE))
+	        panic("set status fail");
+        return cp;
 }
 
 // Challenge!
