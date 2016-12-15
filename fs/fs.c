@@ -62,7 +62,14 @@ alloc_block(void)
 	// super->s_nblocks blocks in the disk altogether.
 
 	// LAB 5: Your code here.
-	panic("alloc_block not implemented");
+	
+	uint32_t i = 0;
+	for(;i < super->s_nblocks; ++i) {
+	        if(block_is_free(i)) {
+	                bitmap[i/32] &= ~(1<<(i%32));
+	                return i;
+	        }
+	}
 	return -E_NO_DISK;
 }
 
@@ -134,8 +141,28 @@ fs_init(void)
 static int
 file_block_walk(struct File *f, uint32_t filebno, uint32_t **ppdiskbno, bool alloc)
 {
-       // LAB 5: Your code here.
-       panic("file_block_walk not implemented");
+        // LAB 5: Your code here.
+       
+        if(filebno >= NDIRECT + NINDIRECT) return -E_INVAL;
+        
+        if(filebno <= NDIRECT) {
+                if(ppdiskbno)
+                        *ppdiskbno = f->f_direct+filebno;
+                return 0;
+        } else if(f->f_indirect) {
+                if(ppdiskbno)
+                        *ppdiskbno = ((uint32_t*)diskaddr(f->f_indirect))+filebno-NDIRECT;
+                return 0;        
+        } else {
+                if(!alloc) return -E_NOT_FOUND;
+                uint32_t bno = alloc_block();
+                if(bno < 0) return bno;
+                sys_page_alloc(0, diskaddr(bno), PTE_SYSCALL);
+                f->f_indirect = bno;
+                if(ppdiskbno)
+                        *ppdiskbno = ((uint32_t*)diskaddr(f->f_indirect))+filebno-NDIRECT;
+                return 0;
+        }
 }
 
 // Set *blk to the address in memory where the filebno'th
@@ -149,8 +176,22 @@ file_block_walk(struct File *f, uint32_t filebno, uint32_t **ppdiskbno, bool all
 int
 file_get_block(struct File *f, uint32_t filebno, char **blk)
 {
-       // LAB 5: Your code here.
-       panic("file_get_block not implemented");
+        // LAB 5: Your code here.
+        uint32_t *ppdiskbno;
+        int r;
+        if((r = file_block_walk(f, filebno, &ppdiskbno, 1)))
+                if(r < 0) return r;
+        if(*ppdiskbno) {
+                *blk = diskaddr(*ppdiskbno);
+                return 0;
+        } else {
+                uint32_t bno = alloc_block();
+                if(bno < 0) return bno;
+                *ppdiskbno = bno;
+                *blk = diskaddr(bno);
+                sys_page_alloc(0, *blk, PTE_SYSCALL);
+                return 0;
+        }
 }
 
 // Try to find a file named "name" in dir.  If so, set *file to it.
